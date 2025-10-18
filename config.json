@@ -1,0 +1,18 @@
+{
+  "llm_provider": "openai",
+  "model": "gpt-4.1",
+  "approved_commands": [
+    "cd",
+    "clear",
+    "java",
+    "ls",
+    "cd"
+  ],
+  "blacklist": [
+    "rm -rf /",
+    ":(){ :|:& };:",
+    "mkfs",
+    "dd if=/dev/zero",
+    "sudo"
+  ]
+}
