@@ -1,0 +1,9 @@
+venv
+.env
+hello.py
+ui.py
+
+__pycache__
+
+chat_history.json
+config.json
