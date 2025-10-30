@@ -1,0 +1,122 @@
+﻿Pipe Utility
+The | (pipe) utility is a powerful tool that allows users to connect the standard output of one command to the standard input of another, thus enabling the flow of data between commands. It is beneficial when performing tasks that involve multiple commands, data transformation, filtering, or data aggregation.
+The basic syntax is: 
+[command1] | [command 2]
+Redirect Operator
+The redirect operator (>, <, >>, 2>, etc.) is a mechanism that allows users to control the input and output of commands. > redirects the standard output of a command to a file, overwriting its content if the file already exists. The >> operator appends the standard output to the specified file.
+< operator redirects the standard input of a command from a file. The 2> operator redirects standard error messages to a file. These operators enable users to manage data flow, perform file-based operations, and ensure precise error handling.
+Get Help
+Mac terminal comes with built-in help features. You can access command-line help in two ways:
+* Adding the --help option displays a summary of the command's functionalities:
+[command] --help
+Example
+Read the help summary for the sudo command:
+sudo --help
+* A detailed overview of the command:
+man [command]
+Run Command as Super User
+Use the sudo command to authenticate as an administrator:
+sudo [command] [arguments]
+Example
+Remove a directory the current user does not own:
+sudo rm -rf testdir
+Forward Command Output
+There are two common scenarios for forwarding command output in macOS:
+* Use the | symbol to pipe the command output as an argument to another command:
+[command1] | [command2]
+Example
+Use the wc command to count the number of words in the output:
+echo "one two three" | wc -w
+* Prevent the output of the command from showing in the standard output:
+[command] > /dev/null
+Print in Terminal
+Print text to standard output with the echo command:
+echo [text]
+Example
+Print the value of the HOME variable:
+echo $HOME
+
+
+Environment Variables
+Managing application execution parameters with environment variables is an important command-line functionality. Learn how to view and create variables in the following sections.
+Display Variables
+Display the list of all the variables on the system with the printenv command:
+printenv
+Use echo to print the value of a specific variable:
+echo $[variable]
+Export to Path Variable
+Add a new binary path to the PATH variable:
+export PATH=$PATH:[path-to-executable]
+Set Variables
+Create a new variable by passing its name and value to the export command:
+export [variable-name]=[variable-value]
+
+
+Network
+Mac terminal supports many networking options, such as viewing and configuring the local network, connecting to remote computers, etc. The sections below explain how to perform the most common network operations.
+View Network Information
+Test if a remote host is reachable on the network with the ping command:
+ping [hostname-or-IP-address]
+Use the arp command to view a list of devices on the local network, with their IP and MAC addresses:
+arp -a
+View the path of the packets from the machine to the destination with the traceroute command:
+traceroute [hostname-or-IP-address]
+View Network Adapters
+Display the connected network adapters with the ifconfig command.
+ifconfig
+To view a specific adapter, pass its name as an argument to the command:
+ifconfig [network-adapter-name]
+Download Files
+The curl command allows data transfers to and from remote servers. Use curl to download a file to your machine by using the -O option and passing the full URL as an argument:
+curl -O [URL]/[filename]
+Connect via SSH
+Use the following syntax to establish an SSH connection with a remote server:
+ssh [username]@[hostname-or-IP-address]
+When connecting to a remote host for the first time, you may need to generate an SSH key:
+ssh-keygen
+After generating the key, copy it to the remote host:
+ssh-copy-id -i [path-to-PUB-key] [username]@[hostname-or-IP-address]
+
+
+
+
+
+
+Homebrew Commands
+Homebrew is the default package manager for macOS. It provides Mac with functionalities usually found in Linux package managers, such as APT, RPM, etc. Below is the list of the most common Homebrew operations.
+Manage Formulas
+Below are the operations you can perform on Homebrew formulae and casks:
+* Update the formulae:
+brew update
+* Upgrade the formulae:
+brew upgrade
+* Upgrade a specific formula:
+brew upgrade [formula]
+* Prevent a formula from receiving an update:
+brew pin [installed-formula]
+* Remove the pin and allow the formula to update:
+brew unpin [pinned-formula]
+* Install a formula:
+brew install [formula]
+* Remove a formula from the system:
+brew uninstall [formula]
+View Information
+Learn more about the state of your homebrew formulae and casks by using the commands below:
+* Display a list of the formulae currently installed on the system:
+brew list --formula
+* View a list of the currently installed casks:
+brew list --cask
+* Show dependency packages for a specified formula:
+brew deps [formula]
+* Display outdated formulae on the system:
+brew outdated --formula
+* List outdated casks:
+brew outdated --cask
+Manage Homebrew
+Troubleshoot potential problems with Homebrew with the following commands:
+* Execute the doctor subcommand:
+brew doctor
+* Access the help resources:
+brew help
+* Clean the system from outdated packages and stale lock files:
+brew cleanup

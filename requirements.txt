@@ -1,0 +1,10 @@
+langchain
+python-dotenv
+langchain
+langchain-chroma
+langchain-ollama
+langchain-huggingface
+chromadb
+sentence-transformers
+pypdf
+pandas

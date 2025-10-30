@@ -564,5 +564,10 @@
     "query": "java AddTwoNumber.java !",
     "command": "java AddTwoNumber.java ",
     "output": "\n[Exit code: 256]"
+  },
+  {
+    "query": "Show all files and folders in this directory",
+    "command": "ls -a",
+    "output": ".\n..\n.env\n.gitignore\nCLIpsy-subtract.py\nadd_numbers.py\nchroma_bash\nconfig.json\nhistory.json\nmain.py\nrag_files\nrag_ingest.py\nrequirements.txt\nvenv"
   }
 ]
