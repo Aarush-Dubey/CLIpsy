@@ -1,0 +1,58 @@
+{
+    "dangerous": [
+        {
+            "value": "rm",
+            "match_type": "prefix"
+        },
+        {
+            "value": "shutdown",
+            "match_type": "prefix"
+        },
+        {
+            "value": "reboot",
+            "match_type": "prefix"
+        },
+        {
+            "value": "kill",
+            "match_type": "prefix"
+        },
+        {
+            "value": "chmod 777",
+            "match_type": "prefix"
+        },
+        {
+            "value": "chown",
+            "match_type": "prefix"
+        },
+        {
+            "value": "mkfs",
+            "match_type": "prefix"
+        }
+    ],
+    "approved": [
+        {
+            "value": "python",
+            "match_type": "prefix"
+        },
+        {
+            "value": "manim",
+            "match_type": "prefix"
+        },
+        {
+            "value": "git",
+            "match_type": "prefix"
+        },
+        {
+            "value": "node",
+            "match_type": "prefix"
+        },
+        {
+            "value": "kubectl",
+            "match_type": "prefix"
+        },
+        {
+            "value": "golang",
+            "match_type": "prefix"
+        }
+    ]
+}
