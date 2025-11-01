@@ -1,93 +1,132 @@
-# Public Methods of RegexAgent
-# ----------------------------
-#
-# check(command: str) -> Dict[str, Any]
-#   Classifies a shell command (handles compound commands).
-#   Returns a dict with:
-#       {
-#         "summary": {"is_safe": bool, "reason": str},
-#         "subcommands": [ {SubcommandResult fields...}, ... ]
-#       }
-#
-# modify(
-#     operation: Literal["add", "remove", "clear"],
-#     category: Literal["approved", "dangerous"],
-#     value: str = "",
-#     match_type: Literal["prefix", "exact"] = "prefix",
-#     persist: bool = True
-# ) -> Dict[str, Any]
-#   Modifies the command policy (add, remove, or clear rules) and optionally saves to disk.
-#   Returns a dict summarizing the change:
-#       {
-#         "status": "success" | "error",
-#         "category": str,
-#         "operation": str,
-#         "value": str,
-#         "message": str
-#       }
-#
-# Example Usage:
-# --------------
-# agent = RegexAgent()
-#
-# # Example 1: Add a new approved command
-# input:
-# agent.modify(operation="add", category="approved", value="kubectl", match_type="prefix", persist=True)
-#
-# output:
-# {
-#   "status": "success",
-#   "category": "approved",
-#   "operation": "add",
-#   "value": "kubectl",
-#   "match_type": "prefix",
-#   "generated_pattern": "^kubectl(\\s|$)",
-#   "message": "Approved prefix 'kubectl' added."
-# }
-#
-# # Example 2: Check a command
-# input:
-# agent.check("kubectl apply -f config.yaml")
-#
-# output:
-# {
-#   "summary": {
-#     "is_safe": true,
-#     "reason": "All commands are safe"
-#   },
-#   "subcommands": [
-#     {
-#       "command": "kubectl apply -f config.yaml",
-#       "category": "approved",
-#       "matched": "kubectl",
-#       "match_type": "prefix",
-#       "is_safe": true,
-#       "reason": "Approved prefix 'kubectl' detected"
-#     }
-#   ]
-# }
-#
+"""
+RegexAgent - Shell Command Security Classification Engine
+==========================================================
+
+A lightweight safety engine that classifies shell commands using regex patterns.
+Commands are categorized as: dangerous, approved, builtin, or unknown.
+
+PUBLIC METHODS
+==============
+
+1. check(command: str) -> Dict[str, Any]
+   ----------------------------------------
+   Classifies a shell command (handles compound commands with &&, ||, ;, |)
+   
+   Input:
+       command: str - Shell command to classify (e.g., "git commit && git push")
+   
+   Output:
+       {
+           "status": "dangerous" | "approved" | "unknown",
+           "is_safe": bool,
+           "details": [
+               {
+                   "command": str,
+                   "classification": str,
+                   "matched": str,
+                   "match_type": str,
+                   "reason": str
+               }
+           ]
+       }
+   
+   Example:
+       Input:  agent.check("rm -rf / && git push")
+       Output: {
+                   "status": "dangerous",
+                   "is_safe": false,
+                   "details": [
+                       {
+                           "command": "rm -rf /",
+                           "classification": "dangerous",
+                           "matched": "rm",
+                           "match_type": "prefix",
+                           "reason": "Matches dangerous prefix pattern 'rm'"
+                       },
+                       {
+                           "command": "git push",
+                           "classification": "approved",
+                           "matched": "git",
+                           "match_type": "prefix",
+                           "reason": "Matches approved prefix pattern 'git'"
+                       }
+                   ]
+               }
+
+2. modify(operation, category, value="", match_type="prefix", persist=True) -> Dict[str, Any]
+   -------------------------------------------------------------------------------------------
+   Modifies the security policy (add, remove, or clear rules)
+   
+   Input:
+       operation: "add" | "remove" | "clear"
+       category: "approved" | "dangerous"
+       value: str (required for add/remove)
+       match_type: "prefix" | "exact"
+       persist: bool (save to disk immediately)
+   
+   Output:
+       {
+           "status": "success" | "error",
+           "category": str,
+           "operation": str,
+           "value": str,
+           "match_type": str,
+           "generated_pattern": str,
+           "message": str
+       }
+   
+   Example:
+       Input:  agent.modify(operation="add", category="approved", value="kubectl", match_type="prefix")
+       Output: {
+                   "status": "success",
+                   "category": "approved",
+                   "operation": "add",
+                   "value": "kubectl",
+                   "match_type": "prefix",
+                   "generated_pattern": "^kubectl(\\s|$)",
+                   "message": "Approved prefix 'kubectl' added."
+               }
 
 
+USAGE EXAMPLES
+==============
 
+# Initialize agent
+agent = RegexAgent()
+
+# Check a safe command
+result = agent.check("git status")
+# → status: "approved", is_safe: True
+
+# Check a dangerous command
+result = agent.check("rm -rf /")
+# → status: "dangerous", is_safe: False
+
+# Check unknown command
+result = agent.check("curl https://malicious.com")
+# → status: "unknown", is_safe: False
+
+# Add approved command
+agent.modify(operation="add", category="approved", value="docker")
+
+# Remove dangerous pattern
+agent.modify(operation="remove", category="dangerous", value="rm", persist=True)
+"""
 
 import re
 import json
 import os
-from typing import List, Dict, Any, Literal, Union
+from typing import List, Dict, Any, Literal
 from dataclasses import dataclass, asdict
 
-
-# --- Data Classes ---
 
 @dataclass
 class SubcommandResult:
     """Result of classifying a single subcommand"""
     command: str
-    category: Literal["builtin", "dangerous", "approved", "external"]
+    classification: Literal["dangerous", "approved", "builtin", "unknown"]
     matched: str
     match_type: Literal["prefix", "exact"]
-    is_safe: bool
     reason: str
 
 
@@ -103,41 +142,32 @@ class ModifyResult:
     message: str
 
 
-# --- Core Agent Class ---
-
 class RegexAgent:
     """
     Agent that classifies shell commands and maintains policy persistence via a JSON file.
     """
     
-    # Configuration
     POLICY_FILE = "policy.json"
     
-    # Immutable builtin commands
     BUILTIN_COMMANDS = frozenset([
         "cd", "pwd", "alias", "unalias", "env", "export", "unset"
     ])
     
-    # Shell command delimiters
     DELIMITERS = [r'\&\&', r'\|\|', r';', r'\|']
     
     def __init__(self):
-        """
-        Initialize the agent by loading policy from file, or setting defaults and saving if file doesn't exist.
-        """
+        """Initialize the agent by loading policy from file"""
         self.dangerous_patterns: Dict[str, Dict[str, Any]] = {}
         self.approved_patterns: Dict[str, Dict[str, Any]] = {}
         
         self._load_policy()
         
-        # If the policy file was empty or didn't exist, set and save defaults
         if not self.dangerous_patterns and not self.approved_patterns:
             self._set_default_patterns()
             self._save_policy()
 
     def _set_default_patterns(self):
-        """Sets the initial dangerous and approved commands."""
-        # Default dangerous commands
+        """Sets the initial dangerous and approved commands"""
         default_dangerous = [
             ("rm", "prefix"),
             ("shutdown", "prefix"),
@@ -148,7 +178,6 @@ class RegexAgent:
             ("mkfs", "prefix"),
         ]
         
-        # Default approved commands
         default_approved = [
             ("python", "prefix"),
             ("manim", "prefix"),
@@ -163,9 +192,7 @@ class RegexAgent:
             self._add_pattern("approved", value, match_type)
 
     def _load_policy(self):
-        """
-        Loads policy lists from the JSON file and compiles regex patterns.
-        """
+        """Loads policy lists from the JSON file and compiles regex patterns"""
         if not os.path.exists(self.POLICY_FILE):
             print(f"Policy file '{self.POLICY_FILE}' not found. Will use defaults.")
             return
@@ -177,11 +204,9 @@ class RegexAgent:
             self.dangerous_patterns.clear()
             self.approved_patterns.clear()
 
-            # Load dangerous patterns
             for item in policy_data.get("dangerous", []):
                 self._add_pattern_from_load("dangerous", item["value"], item["match_type"])
 
-            # Load approved patterns
             for item in policy_data.get("approved", []):
                 self._add_pattern_from_load("approved", item["value"], item["match_type"])
             
@@ -189,15 +214,11 @@ class RegexAgent:
             
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error loading policy from '{self.POLICY_FILE}': {e}. Using in-memory defaults.")
-            # Critical error: fall back to an empty state or defaults
             self.dangerous_patterns.clear()
             self.approved_patterns.clear()
 
     def _save_policy(self):
-        """
-        Writes the current in-memory policy lists to the JSON file.
-        Only saves the value and match_type, not the compiled regex object.
-        """
+        """Writes the current in-memory policy lists to the JSON file"""
         serializable_policy = {
             "dangerous": [
                 {"value": data["value"], "match_type": data["match_type"]}
@@ -219,28 +240,23 @@ class RegexAgent:
             return False
 
     def _generate_pattern(self, value: str, match_type: str) -> str:
-        """
-        Generate a regex pattern from a value and match type.
-        """
+        """Generate a regex pattern from a value and match type"""
         escaped_value = re.escape(value)
         
         if match_type == "prefix":
-            # Match command at start, followed by space or end of string
             return f"^{escaped_value}(\\s|$)"
         elif match_type == "exact":
-            # Match entire command exactly
             return f"^{escaped_value}$"
         else:
             raise ValueError(f"Invalid match_type: {match_type}. Must be 'prefix' or 'exact'")
     
     def _add_pattern_from_load(self, category: str, value: str, match_type: str) -> str:
-        """Helper to add pattern without saving, used only during loading."""
+        """Helper to add pattern without saving, used only during loading"""
         pattern_str = self._generate_pattern(value, match_type)
         pattern = re.compile(pattern_str)
         
         target = self.dangerous_patterns if category == "dangerous" else self.approved_patterns
         
-        # Store both the pattern and metadata
         target[value] = {
             "pattern": pattern,
             "pattern_str": pattern_str,
@@ -250,21 +266,11 @@ class RegexAgent:
         return pattern_str
 
     def _add_pattern(self, category: str, value: str, match_type: str) -> str:
-        """
-        Add a pattern to the specified category.
-        
-        Returns:
-            The generated pattern string
-        """
+        """Add a pattern to the specified category"""
         return self._add_pattern_from_load(category, value, match_type)
     
     def _remove_pattern(self, category: str, value: str) -> bool:
-        """
-        Remove a pattern from the specified category.
-        
-        Returns:
-            True if removed, False if not found
-        """
+        """Remove a pattern from the specified category"""
         target = self.dangerous_patterns if category == "dangerous" else self.approved_patterns
         
         if value in target:
@@ -280,9 +286,7 @@ class RegexAgent:
             self.approved_patterns.clear()
     
     def _split_compound_command(self, command: str) -> List[str]:
-        """
-        Split a compound shell command into atomic subcommands. (Original implementation kept)
-        """
+        """Split a compound shell command into atomic subcommands"""
         delimiter_pattern = '|'.join(self.DELIMITERS)
         subcommands = re.split(f'({delimiter_pattern})', command)
         
@@ -295,160 +299,148 @@ class RegexAgent:
         return result if result else [command.strip()]
     
     def _classify_single_command(self, command: str) -> SubcommandResult:
-        """
-        Classify a single atomic command. (Original implementation kept)
-        """
+        """Classify a single atomic command with clear categories"""
         command = command.strip()
         base_command = command.split()[0] if command else ""
         
-        # 1. Check dangerous
+        # 1. Check dangerous (highest priority)
         for value, data in self.dangerous_patterns.items():
             if data["pattern"].match(command):
                 return SubcommandResult(
-                    command=command, category="dangerous", matched=value, match_type=data["match_type"],
-                    is_safe=False, reason=f"Dangerous {data['match_type']} '{value}' detected"
+                    command=command,
+                    classification="dangerous",
+                    matched=value,
+                    match_type=data["match_type"],
+                    reason=f"Matches dangerous {data['match_type']} pattern '{value}'"
                 )
         
-        # 2. Check builtin
+        # 2. Check builtin (safe by design)
         if base_command in self.BUILTIN_COMMANDS:
             return SubcommandResult(
-                command=command, category="builtin", matched=base_command, match_type="prefix",
-                is_safe=True, reason="Builtin command detected"
+                command=command,
+                classification="builtin",
+                matched=base_command,
+                match_type="exact",
+                reason=f"Built-in shell command"
             )
         
         # 3. Check approved
         for value, data in self.approved_patterns.items():
             if data["pattern"].match(command):
                 return SubcommandResult(
-                    command=command, category="approved", matched=value, match_type=data["match_type"],
-                    is_safe=True, reason=f"Approved {data['match_type']} '{value}' detected"
+                    command=command,
+                    classification="approved",
+                    matched=value,
+                    match_type=data["match_type"],
+                    reason=f"Matches approved {data['match_type']} pattern '{value}'"
                 )
         
-        # 4. Default to external
+        # 4. Unknown (not explicitly approved)
         return SubcommandResult(
-            command=command, category="external", matched=base_command, match_type="prefix",
-            is_safe=False, reason=f"External command '{base_command}' not in approved list"
+            command=command,
+            classification="unknown",
+            matched=base_command,
+            match_type="prefix",
+            reason=f"Command '{base_command}' not in approved list"
         )
     
     def check(self, command: str) -> Dict[str, Any]:
         """
-        Classify a command (handles compound expressions). (Original implementation kept)
+        Classify a command with clear status.
+        
+        Returns:
+            {
+                "status": "dangerous" | "approved" | "unknown",
+                "is_safe": bool,
+                "details": [
+                    {
+                        "command": str,
+                        "classification": str,
+                        "matched": str,
+                        "match_type": str,
+                        "reason": str
+                    }
+                ]
+            }
         """
         subcommands = self._split_compound_command(command)
         results = [self._classify_single_command(cmd) for cmd in subcommands]
         
-        is_safe = all(r.is_safe for r in results)
+        # Determine overall status (most restrictive wins)
+        has_dangerous = any(r.classification == "dangerous" for r in results)
+        has_unknown = any(r.classification == "unknown" for r in results)
         
-        reason = "All commands are safe"
-        if not is_safe:
-            for r in results:
-                if not r.is_safe:
-                    reason = f"Contains {r.category} command '{r.command}'"
-                    break
+        if has_dangerous:
+            status = "dangerous"
+            is_safe = False
+        elif has_unknown:
+            status = "unknown"
+            is_safe = False
+        else:
+            status = "approved"
+            is_safe = True
         
         return {
-            "summary": {"is_safe": is_safe, "reason": reason},
-            "subcommands": [asdict(r) for r in results]
+            "status": status,
+            "is_safe": is_safe,
+            "details": [asdict(r) for r in results]
         }
-    
+
     def modify(
         self,
         operation: Literal["add", "remove", "clear"],
         category: Literal["approved", "dangerous"],
         value: str = "",
         match_type: Literal["prefix", "exact"] = "prefix",
-        persist: bool = True # Defaulting to True for convenience, but False is better for safety (as previously discussed)
-    ) -> Dict[str, Any]:
-        """
-        Modify the security policy.
-
-        Args:
-            operation: The operation to perform (add, remove, clear)
-            category: The category to modify (approved or dangerous)
-            value: The command value (required for add/remove)
-            match_type: The match type (prefix or exact)
-            persist: Whether to persist changes to the JSON file immediately (Default: True).
-        """
-        # ... (Validation remains the same)
-        if category not in ["approved", "dangerous"]:
-             return {"status": "error", "message": f"Invalid category: {category}. Must be 'approved' or 'dangerous'"}
-        
-        result_message = ""
-        success = False
-        generated_pattern = ""
-        
-        if operation == "clear":
-            self._clear_patterns(category)
-            success = True
-            result_message = f"All {category} patterns cleared."
-        
-        elif operation == "add":
-            if not value:
-                 return {"status": "error", "message": "Value is required for 'add' operation"}
-            generated_pattern = self._add_pattern(category, value, match_type)
-            success = True
-            result_message = f"{category.capitalize()} {match_type} '{value}' added."
-        
-        elif operation == "remove":
-            if not value:
-                 return {"status": "error", "message": "Value is required for 'remove' operation"}
+        persist: bool = True
+        ) -> Dict[str, Any]:
+            """Modify the security policy"""
+            if category not in ["approved", "dangerous"]:
+                return {"status": "error", "message": f"Invalid category: {category}"}
             
-            if self._remove_pattern(category, value):
+            result_message = ""
+            success = False
+            generated_pattern = ""
+            
+            if operation == "clear":
+                self._clear_patterns(category)
                 success = True
-                result_message = f"{category.capitalize()} pattern '{value}' removed."
+                result_message = f"All {category} patterns cleared."
+            
+            elif operation == "add":
+                if not value:
+                    return {"status": "error", "message": "Value is required for 'add' operation"}
+                generated_pattern = self._add_pattern(category, value, match_type)
+                success = True
+                result_message = f"{category.capitalize()} {match_type} '{value}' added."
+            
+            elif operation == "remove":
+                if not value:
+                    return {"status": "error", "message": "Value is required for 'remove' operation"}
+                
+                if self._remove_pattern(category, value):
+                    success = True
+                    result_message = f"{category.capitalize()} pattern '{value}' removed."
+                else:
+                    success = False
+                    result_message = f"Pattern '{value}' not found in {category} list."
+            
             else:
-                success = False
-                result_message = f"Pattern '{value}' not found in {category} list."
-        
-        else:
-            return {"status": "error", "message": f"Invalid operation: {operation}. Must be 'add', 'remove', or 'clear'"}
-        
-        # --- Persistence Logic ---
-        if success and persist:
-            if not self._save_policy():
-                 return {"status": "error", "message": f"{result_message} BUT failed to persist changes to file."}
+                return {"status": "error", "message": f"Invalid operation: {operation}"}
+            
+            if success and persist:
+                if not self._save_policy():
+                    return {"status": "error", "message": f"{result_message} BUT failed to persist changes."}
 
-        # --- Return Result ---
-        return {
-            "status": "success" if success else "error",
-            "category": category,
-            "operation": operation,
-            "value": value,
-            "match_type": match_type if operation == "add" else "",
-            "generated_pattern": generated_pattern,
-            "message": result_message
-        }
-    
-    def get_policy(self) -> Dict[str, Any]:
-        """
-        Get the current security policy.
-        
-        Returns:
-            Dictionary containing all current patterns
-        """
-        # NOTE: This only saves the necessary fields for persistence (value, match_type)
-        # The 'pattern' field here is generated for display/audit, showing the full regex string.
-        return {
-            "builtin": list(self.BUILTIN_COMMANDS),
-            "dangerous": [
-                {
-                    "value": data["value"],
-                    "match_type": data["match_type"],
-                    "pattern": data["pattern_str"]
-                }
-                for data in self.dangerous_patterns.values()
-            ],
-            "approved": [
-                {
-                    "value": data["value"],
-                    "match_type": data["match_type"],
-                    "pattern": data["pattern_str"]
-                }
-                for data in self.approved_patterns.values()
-            ]
-        }
-
-
+            return {
+                "status": "success" if success else "error",
+                "category": category,
+                "operation": operation,
+                "value": value,
+                "match_type": match_type if operation == "add" else "",
+                "generated_pattern": generated_pattern,
+                "message": result_message
+            }
 # Example usage
 if __name__ == "__main__":
     # Remove old policy file to start fresh for demo
@@ -474,9 +466,6 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("Test 2: View current policy after ADD")
     print("=" * 60)
-    policy = agent.get_policy()
-    print(f"Policy file size: {os.path.getsize(RegexAgent.POLICY_FILE)} bytes")
-    print("Approved commands:", [d['value'] for d in policy['approved']])
     
     # Test 3: Create a NEW agent to check persistence
     print("\n" + "=" * 60)
@@ -500,8 +489,4 @@ if __name__ == "__main__":
         persist=False # Should only change in memory
     )
     
-    # Check policy on disk (should still have kubectl)
-    print(f"Approved list in memory BEFORE re-load:", [d['value'] for d in agent_reloaded.get_policy()['approved']])
-
-    agent_reloaded_again = RegexAgent() # Forces reload from disk
-    print(f"Approved list on disk AFTER NO-PERSIST REMOVE:", [d['value'] for d in agent_reloaded_again.get_policy()['approved']])
+    

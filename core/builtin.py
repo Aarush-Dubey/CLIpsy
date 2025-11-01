@@ -12,6 +12,8 @@ environment variables, aliases, working directory, and shell variables.
 Public Functions:
 -----------------
 - handle(cmd: str) -> CommandResult        : Entry point that dispatches a command to its handler.
+
+Private Function (should not be called)
 - _handle_cd(cmd: str) -> CommandResult    : Change current working directory.
 - _handle_pwd(cmd: str) -> CommandResult   : Print current working directory.
 - _handle_alias(cmd: str) -> CommandResult : Create, list, or update command aliases.
