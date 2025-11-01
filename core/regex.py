@@ -1,3 +1,76 @@
+# Public Methods of RegexAgent
+# ----------------------------
+#
+# check(command: str) -> Dict[str, Any]
+#   Classifies a shell command (handles compound commands).
+#   Returns a dict with:
+#       {
+#         "summary": {"is_safe": bool, "reason": str},
+#         "subcommands": [ {SubcommandResult fields...}, ... ]
+#       }
+#
+# modify(
+#     operation: Literal["add", "remove", "clear"],
+#     category: Literal["approved", "dangerous"],
+#     value: str = "",
+#     match_type: Literal["prefix", "exact"] = "prefix",
+#     persist: bool = True
+# ) -> Dict[str, Any]
+#   Modifies the command policy (add, remove, or clear rules) and optionally saves to disk.
+#   Returns a dict summarizing the change:
+#       {
+#         "status": "success" | "error",
+#         "category": str,
+#         "operation": str,
+#         "value": str,
+#         "message": str
+#       }
+#
+# Example Usage:
+# --------------
+# agent = RegexAgent()
+#
+# # Example 1: Add a new approved command
+# input:
+# agent.modify(operation="add", category="approved", value="kubectl", match_type="prefix", persist=True)
+#
+# output:
+# {
+#   "status": "success",
+#   "category": "approved",
+#   "operation": "add",
+#   "value": "kubectl",
+#   "match_type": "prefix",
+#   "generated_pattern": "^kubectl(\\s|$)",
+#   "message": "Approved prefix 'kubectl' added."
+# }
+#
+# # Example 2: Check a command
+# input:
+# agent.check("kubectl apply -f config.yaml")
+#
+# output:
+# {
+#   "summary": {
+#     "is_safe": true,
+#     "reason": "All commands are safe"
+#   },
+#   "subcommands": [
+#     {
+#       "command": "kubectl apply -f config.yaml",
+#       "category": "approved",
+#       "matched": "kubectl",
+#       "match_type": "prefix",
+#       "is_safe": true,
+#       "reason": "Approved prefix 'kubectl' detected"
+#     }
+#   ]
+# }
+#
+
+
+
+
 import re
 import json
 import os
@@ -32,7 +105,7 @@ class ModifyResult:
 
 # --- Core Agent Class ---
 
-class RegexCommandAgent:
+class RegexAgent:
     """
     Agent that classifies shell commands and maintains policy persistence via a JSON file.
     """
@@ -379,12 +452,10 @@ class RegexCommandAgent:
 # Example usage
 if __name__ == "__main__":
     # Remove old policy file to start fresh for demo
-    if os.path.exists(RegexCommandAgent.POLICY_FILE):
-        os.remove(RegexCommandAgent.POLICY_FILE)
-        print(f"Removed old '{RegexCommandAgent.POLICY_FILE}' for fresh start.")
+    
     
     print("\n--- Initializing Agent (Loads or Creates Policy) ---")
-    agent = RegexCommandAgent()
+    agent = RegexAgent()
     
     # Test 1: Add new approved pattern and persist (persist=True is default)
     print("\n" + "=" * 60)
@@ -404,14 +475,14 @@ if __name__ == "__main__":
     print("Test 2: View current policy after ADD")
     print("=" * 60)
     policy = agent.get_policy()
-    print(f"Policy file size: {os.path.getsize(RegexCommandAgent.POLICY_FILE)} bytes")
+    print(f"Policy file size: {os.path.getsize(RegexAgent.POLICY_FILE)} bytes")
     print("Approved commands:", [d['value'] for d in policy['approved']])
     
     # Test 3: Create a NEW agent to check persistence
     print("\n" + "=" * 60)
     print("Test 3: Re-initialize Agent to Check Persistence")
     print("=" * 60)
-    agent_reloaded = RegexCommandAgent()
+    agent_reloaded = RegexAgent()
     
     # Check if the added command is present
     result = agent_reloaded.check("kubectl apply -f config.yaml")
@@ -432,5 +503,5 @@ if __name__ == "__main__":
     # Check policy on disk (should still have kubectl)
     print(f"Approved list in memory BEFORE re-load:", [d['value'] for d in agent_reloaded.get_policy()['approved']])
 
-    agent_reloaded_again = RegexCommandAgent() # Forces reload from disk
+    agent_reloaded_again = RegexAgent() # Forces reload from disk
     print(f"Approved list on disk AFTER NO-PERSIST REMOVE:", [d['value'] for d in agent_reloaded_again.get_policy()['approved']])

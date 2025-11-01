@@ -1,3 +1,35 @@
+
+"""
+BuiltinHandler Module
+---------------------
+
+This module defines the BuiltinHandler class, which implements built-in shell commands 
+(like `cd`, `pwd`, `alias`, `export`, etc.) for a custom CLI or shell simulation.
+
+Each command updates or retrieves information from a ShellState object, which maintains 
+environment variables, aliases, working directory, and shell variables.
+
+Public Functions:
+-----------------
+- handle(cmd: str) -> CommandResult        : Entry point that dispatches a command to its handler.
+- _handle_cd(cmd: str) -> CommandResult    : Change current working directory.
+- _handle_pwd(cmd: str) -> CommandResult   : Print current working directory.
+- _handle_alias(cmd: str) -> CommandResult : Create, list, or update command aliases.
+- _handle_unalias(cmd: str) -> CommandResult : Remove alias(es).
+- _handle_export(cmd: str) -> CommandResult : Set or export environment variables.
+- _handle_unset(cmd: str) -> CommandResult  : Remove environment or shell variables.
+- _handle_env(cmd: str) -> CommandResult    : Display all environment variables.
+
+Example Usage:
+--------------
+If you give this input:
+    handler.handle("alias greet='echo Hello'")
+    handler.handle("alias")
+
+You will get this output:
+    alias greet='echo Hello'
+"""
+
 import os
 from shellstate import ShellState, CommandResult
 
