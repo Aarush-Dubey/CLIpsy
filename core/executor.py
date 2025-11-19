@@ -1,6 +1,6 @@
-from shellstate import CommandResult , ShellState
-from regex import RegexAgent
-from builtin import BuiltinHandler
+from core.shellstate import CommandResult , ShellState
+from core.regex import RegexAgent
+from core.builtin import BuiltinHandler
 import subprocess
 from typing import Dict, Any
 
@@ -54,7 +54,6 @@ class ExecutorAgent:
         
         # CRITICAL: Check safety FIRST before doing anything else
         classification_result = self.regex_agent.check(cmd)
-        print(classification_result)
         status = classification_result.get("status", "unknown")
         is_safe = classification_result.get("is_safe", False)
         
@@ -67,6 +66,7 @@ class ExecutorAgent:
         if is_safe and status == "approved":
             # Safe and approved - execute directly
             if is_builtin:
+                
                 return self._execute_builtin(cmd)
             else:
         
@@ -109,7 +109,7 @@ class ExecutorAgent:
     
     def _handle_unknown(self, cmd: str, is_builtin: bool , capture_output) -> CommandResult:
         """Handle unknown command with approval prompt."""
-        print("Command not approved. Approve? [y/n/a/p]: ", end="")
+        print(f"Command {cmd} not approved. Approve? [y/n/a/p]: ", end="")
         response = input().strip().lower()
         
         if response == 'y':
@@ -192,7 +192,7 @@ class ExecutorAgent:
             CommandResult with execution output
         """
         try:
-            print("Hi : DEBUG 5")
+        
             result = subprocess.run(
                 cmd,
                 shell=True,

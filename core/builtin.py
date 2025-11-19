@@ -33,7 +33,8 @@ You will get this output:
 """
 
 import os
-from shellstate import ShellState, CommandResult
+from core.shellstate import ShellState, CommandResult
+
 
 class BuiltinHandler:
     def __init__(self, state: ShellState):
@@ -83,10 +84,12 @@ class BuiltinHandler:
     def _handle_pwd(self, cmd: str) -> CommandResult:
         arg = cmd.strip().split()
         use_physical = "-P" in arg
-
+        
         cwd = os.getcwd()
         if use_physical:
             cwd = os.path.realpath(cwd)
+            
+        print(cwd);
 
         return CommandResult(stdout=cwd + "\n", exit_code=0)
 
@@ -252,6 +255,7 @@ class BuiltinHandler:
             return CommandResult(exit_code=0, stdout="", stderr="")
 
         name = cmd.split()[0]
+        
         func = self.builtins.get(name)
 
         if func:

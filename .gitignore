@@ -1,2 +1,5 @@
 __pycache__
 venv
+core/__pycache__
+brain/__pycache__
+.env

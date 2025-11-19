@@ -179,7 +179,7 @@ class RegexAgent:
         ]
         
         default_approved = [
-            ("python", "prefix"),
+            
             ("manim", "prefix"),
             ("git", "prefix"),
             ("node", "prefix"),
@@ -210,7 +210,7 @@ class RegexAgent:
             for item in policy_data.get("approved", []):
                 self._add_pattern_from_load("approved", item["value"], item["match_type"])
             
-            print(f"Policy loaded successfully from '{self.POLICY_FILE}'.")
+            # print(f"Policy loaded successfully from '{self.POLICY_FILE}'.")
             
         except (IOError, json.JSONDecodeError) as e:
             print(f"Error loading policy from '{self.POLICY_FILE}': {e}. Using in-memory defaults.")
@@ -441,6 +441,12 @@ class RegexAgent:
                 "generated_pattern": generated_pattern,
                 "message": result_message
             }
+    def list_approved(self) -> List[str]:
+        return list(self.approved_patterns.keys())
+
+    def list_dangerous(self) -> List[str]:
+        return list(self.dangerous_patterns.keys())
+
 # Example usage
 if __name__ == "__main__":
     # Remove old policy file to start fresh for demo
