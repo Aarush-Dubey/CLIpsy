@@ -8,7 +8,13 @@ import os
 import sys
 import argparse
 from typing import Optional
+import readline
+import atexit
+from rich.console import Console
+from rich.markdown import Markdown
 
+# Initialize Rich Console
+console = Console()
 # Import your existing components
 from core.builtin import BuiltinHandler
 from core.executor import ExecutorAgent
@@ -18,7 +24,7 @@ from core.shellstate import ShellState
 # Import Brain - choose your implementation
 
 from brain.brain import Brain, AgentMode
-AI_PROVIDER = "Gemini"
+AI_PROVIDER = "Groq"
 
 
 class CLIAgent:
@@ -35,10 +41,21 @@ class CLIAgent:
         """
         self.verbose = verbose
         
+        # Setup history
+        self.hist_file = os.path.join(os.path.expanduser("~"), ".clipsy_history")
+        try:
+            readline.read_history_file(self.hist_file)
+            readline.set_history_length(1000)
+        except FileNotFoundError:
+            pass
+        atexit.register(readline.write_history_file, self.hist_file)
+        
         # Get API key from environment if not provided
         if api_key is None:
             if AI_PROVIDER == "Gemini":
                 api_key = os.getenv("GOOGLE_API_KEY")
+            elif AI_PROVIDER == "Groq":
+                api_key = os.getenv("GROQ_API_KEY")
             else:
                 api_key = os.getenv("OPENAI_API_KEY")
         
@@ -56,7 +73,7 @@ class CLIAgent:
         # Initialize Brain
         kwargs = {"executor": self.executor, "state": self.state, "api_key": api_key}
         if model:
-            kwargs["model" if AI_PROVIDER == "OpenAI" else "model_name"] = model
+            kwargs["model"] = model
         
         self.brain = Brain(**kwargs)
         
@@ -113,9 +130,10 @@ class CLIAgent:
             if "result" in result:
                 res = result["result"]
                 if res.get("stdout"):
-                    print(res["stdout"], end='')
+                    # Use rich markdown for formatting
+                    console.print(Markdown(res["stdout"]))
                 if res.get("stderr"):
-                    print(res["stderr"], end='', file=sys.stderr)
+                    console.print(res["stderr"], style="bold red")
             
             # Show recovery message if applied
             if result.get("recovery_applied") and self.verbose:
@@ -142,7 +160,7 @@ class CLIAgent:
         result = self.brain.process(query, AgentMode.CHAT)
         
         if result["status"] == "success":
-            print(result["response"])
+            console.print(Markdown(result["response"]))
         else:
             print(f"Error: {result.get('message', 'Chat failed')}", file=sys.stderr)
     
@@ -165,7 +183,7 @@ class CLIAgent:
                 if "result" in last_step:
                     res = last_step["result"]
                     if res.get("stdout"):
-                        print(res["stdout"], end='')
+                        console.print(Markdown(res["stdout"]))
         
         elif status == "partial_failure":
             print(f"Error: Task partially completed ({len(result.get('completed_steps', []))} steps)", file=sys.stderr)
@@ -197,6 +215,11 @@ class CLIAgent:
                 # Check for exit commands
                 if user_input.lower() in ['exit', 'quit']:
                     break
+                
+                # Check for clear command
+                if user_input.lower() == 'clear':
+                    os.system('clear')
+                    continue
                 
                 # Check if command should be executed directly (starts or ends with !)
                 if user_input.startswith('!') or user_input.endswith('!'):
@@ -238,37 +261,37 @@ def main():
         description="CLI-Agent Brain Interface",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Examples:
-  # Run interactive shell
-  %(prog)s
+    Examples:
+    # Run interactive shell
+    %(prog)s
+    
+    # Run with verbose mode
+    %(prog)s --verbose
+    
+    # Specify model
+    %(prog)s --model gpt-4o
   
-  # Run with verbose mode
-  %(prog)s --verbose
-  
-  # Specify model
-  %(prog)s --model gpt-4o
-  
-Shell Usage:
-  # Direct execution (bypass Brain, instant)
-  $ !ls -la
-  $ cd /tmp!
-  
-  # Chat mode (conversational questions)
-  $ what is the difference between pip and conda -c
-  $ explain docker containers -c
-  
-  # Agentic mode (complex multi-step tasks)
-  $ create a python project with venv and install pandas -a
-  $ setup a flask app with authentication -a
-  
-  # Command mode (default, with error recovery and safety)
-  $ ls -la
-  $ pip install pandas
-  $ rm important_file.txt
-  
-  # Exit
-  $ exit
-        """
+    Shell Usage:
+    # Direct execution (bypass Brain, instant)
+    $ !ls -la
+    $ cd /tmp!
+    
+    # Chat mode (conversational questions)
+    $ what is the difference between pip and conda -c
+    $ explain docker containers -c
+    
+    # Agentic mode (complex multi-step tasks)
+    $ create a python project with venv and install pandas -a
+    $ setup a flask app with authentication -a
+    
+    # Command mode (default, with error recovery and safety)
+    $ ls -la
+    $ pip install pandas
+    $ rm important_file.txt
+    
+    # Exit
+    $ exit
+            """
     )
     
     parser.add_argument(
@@ -296,7 +319,7 @@ Shell Usage:
     args = parser.parse_args()
     from dotenv import load_dotenv
     load_dotenv()
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
     # Initialize agent
     try:
         agent = CLIAgent(api_key=api_key, model=args.model, verbose=args.verbose)
